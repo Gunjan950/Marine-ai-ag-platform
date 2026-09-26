@@ -129,8 +129,7 @@ class ReportingAgent:
                     lines.append(f"- \u26a0\ufe0f **{a['type']}** ({a['severity']}): {a['advisory']}")
 
         if risk_out:
-            verdict_emoji = {"SAFE": "\u2705", "CAUTION": "\ud83d\udfe0", "UNSAFE": "\ud83d\udd34"}.get(risk_out["verdict"], "")
-            lines.append(f"\n**Safety verdict: {verdict_emoji} {risk_out['verdict']}**")
+           verdict_emoji = {"SAFE": "\u2705", "CAUTION": "\U0001F7E0", "UNSAFE": "\U0001F534"}.get(risk_out["verdict"], "")
             lines.append("Reasoning: " + "; ".join(risk_out["reasons"]))
 
         summary = "\n".join(lines)
