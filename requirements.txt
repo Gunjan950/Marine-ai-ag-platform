@@ -1,0 +1,6 @@
+streamlit>=1.40
+streamlit-folium
+folium
+transformers
+torch
+sentencepiece
