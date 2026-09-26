@@ -2,12 +2,12 @@
 app.py — Agentic AI Marine Intelligence Platform (prototype), Streamlit UI.
 
 Tabs:
-  Ask AI            - existing multi-agent conversational assistant
+  Ask AI            - conversational assistant, Google-style search bar UI
   SOS Emergency      - one-tap distress alert to nearest coast authority
   Best Fishing Time  - hour-by-hour recommendation for today/tomorrow
   Community          - crowd-sourced catch reports from other users
   Weather Forecast   - multi-day forecast + tides
-  Help / Guide       - onboarding chatbot that explains the app itself
+  Tabby              - branded onboarding chatbot that explains the app itself
 """
 
 from datetime import date, timedelta
@@ -21,9 +21,85 @@ from agents import OrchestratorAgent
 
 st.set_page_config(page_title="Marine Intelligence Platform", page_icon="\U0001F30A", layout="wide")
 
-# ---------------------------------------------------------------------------
-# Session state
-# ---------------------------------------------------------------------------
+st.markdown("""
+<style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+
+    .block-container {padding-top: 1.2rem; max-width: 1200px;}
+
+    .hero-banner {
+        background: linear-gradient(135deg, #0b6e99 0%, #0f9b8e 100%);
+        border-radius: 16px;
+        padding: 28px 32px;
+        margin-bottom: 18px;
+        box-shadow: 0 4px 18px rgba(11,110,153,0.25);
+    }
+    .hero-banner h1 {
+        color: white;
+        font-size: 2.1rem;
+        font-weight: 800;
+        margin: 0 0 4px 0;
+    }
+    .hero-banner p {
+        color: rgba(255,255,255,0.9);
+        font-size: 1.0rem;
+        margin: 0;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 4px;
+        background-color: #ffffff;
+        border-radius: 12px;
+        padding: 6px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border: 1px solid #eaeaea;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 48px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #4a4a4a;
+        padding: 0 18px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #0b6e99 !important;
+        color: white !important;
+    }
+
+    div[data-testid="stForm"] .stTextInput input {
+        border-radius: 999px !important;
+        border: 1.5px solid #dfe1e5 !important;
+        padding: 14px 22px !important;
+        font-size: 1.05rem !important;
+        box-shadow: 0 2px 8px rgba(32,33,36,0.12);
+    }
+    div[data-testid="stForm"] .stTextInput input:focus {
+        border-color: #0b6e99 !important;
+        box-shadow: 0 2px 14px rgba(11,110,153,0.25);
+    }
+
+    .chip-btn button {
+        border-radius: 999px !important;
+        border: 1px solid #d5d9dc !important;
+        background-color: #f4f6f7 !important;
+        color: #333 !important;
+        font-size: 0.85rem !important;
+        padding: 2px 14px !important;
+    }
+    .chip-btn button:hover {
+        background-color: #e8f2f6 !important;
+        border-color: #0b6e99 !important;
+        color: #0b6e99 !important;
+    }
+
+    .verdict-safe {color: #1a7f37; font-weight: 700;}
+    .verdict-caution {color: #b35c00; font-weight: 700;}
+    .verdict-unsafe {color: #cf222e; font-weight: 700;}
+</style>
+""", unsafe_allow_html=True)
+
 if "orchestrator" not in st.session_state:
     st.session_state.orchestrator = OrchestratorAgent()
 if "history" not in st.session_state:
@@ -34,14 +110,16 @@ if "help_history" not in st.session_state:
     st.session_state.help_history = []
 if "sos_confirmation" not in st.session_state:
     st.session_state.sos_confirmation = None
+if "pending_query" not in st.session_state:
+    st.session_state.pending_query = None
 
-st.title("\U0001F30A Agentic AI Marine Intelligence Platform")
-st.caption("Prototype \u00b7 Multi-agent conversational decision support over marine & geospatial data "
-           "\u00b7 Synthetic demo data \u00b7 NLU powered entirely by local Hugging Face models")
+st.markdown("""
+<div class="hero-banner">
+    <h1>\U0001F30A Agentic AI Marine Intelligence Platform</h1>
+    <p>Ask about fishing zones, sea safety, weather, and alerts — in your own language.</p>
+</div>
+""", unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Sidebar: shared location + date context used across tabs
-# ---------------------------------------------------------------------------
 with st.sidebar:
     st.header("\U0001F4CD Your location & date")
     town_names = sorted(set(ds.COASTAL_TOWNS.keys()))
@@ -55,66 +133,66 @@ with st.sidebar:
 
     sel_date = st.date_input("Date", value=date.today())
 
-    st.divider()
-    st.header("About this prototype")
-    st.markdown(
-        "- **No paid APIs** \u2014 intent classification, language ID, translation and "
-        "response phrasing run locally via \U0001F917 Hugging Face open models.\n"
-        "- **Data layer is synthetic** (deterministic per location+date) standing in for "
-        "ISRO/INCOIS/IMD feeds \u2014 swap `data_sources.py` for real connectors in production.\n"
-        "- Try Indian languages in the Ask AI tab \u2014 e.g. "
-        "*\u0906\u091c \u092e\u091b\u0932\u0940 \u092a\u0915\u0921\u093c\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u0938\u092c\u0938\u0947 \u0905\u091a\u094d\u091b\u0940 \u091c\u0917\u0939 \u0915\u0939\u093e\u0901 \u0939\u0948?*"
-    )
-
-# ---------------------------------------------------------------------------
-# Tabs
-# ---------------------------------------------------------------------------
-tab_ask, tab_sos, tab_time, tab_community, tab_weather, tab_help = st.tabs(
+tab_ask, tab_sos, tab_time, tab_community, tab_weather, tab_tabby = st.tabs(
     ["\U0001F4AC Ask AI", "\U0001F6A8 SOS Emergency", "\u23F0 Best Fishing Time",
-     "\U0001F91D Community", "\u26C5 Weather Forecast", "\u2753 Help / Guide"]
+     "\U0001F91D Community", "\u26C5 Weather Forecast", "\U0001F42C Tabby"]
 )
 
-# ===========================================================================
-# TAB 1: Ask AI (existing conversational assistant)
-# ===========================================================================
 with tab_ask:
-    st.subheader("Conversation")
+    EXAMPLES = [
+        "Is it safe to venture into the sea tomorrow near Kochi?",
+        "Where is the nearest fishing zone today?",
+        "Weather and tide conditions near Chennai",
+        "Any cyclone alerts near Goa?",
+        "Plan a route from Kochi to Mangalore",
+    ]
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    with st.form("search_form", clear_on_submit=True):
+        c1, c2 = st.columns([6, 1])
+        with c1:
+            typed_query = st.text_input(
+                "search", placeholder="\U0001F50D  Ask anything about the sea today...",
+                label_visibility="collapsed",
+            )
+        with c2:
+            search_submitted = st.form_submit_button("Search", width="stretch")
+
+    st.markdown("<div class='chip-btn'>", unsafe_allow_html=True)
+    chip_cols = st.columns(len(EXAMPLES))
+    chip_clicked = None
+    for col, ex in zip(chip_cols, EXAMPLES):
+        with col:
+            if st.button(ex, key=f"chip_{ex}"):
+                chip_clicked = ex
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    query = None
+    if search_submitted and typed_query:
+        query = typed_query
+    elif chip_clicked:
+        query = chip_clicked
+
+    if query:
+        with st.spinner("Agents are reasoning over marine data..."):
+            result = st.session_state.orchestrator.handle_query(query)
+        st.session_state.history.append({"query": query, "answer": result["answer"]})
+        st.session_state.last_result = result
+
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
     chat_col, map_col = st.columns([1, 1])
 
     with chat_col:
-        for turn in st.session_state.history:
-            with st.chat_message("user"):
-                st.markdown(turn["query"])
-            with st.chat_message("assistant"):
-                st.markdown(turn["answer"])
-
-        examples = [
-            "Is it safe to venture into the sea tomorrow morning near Kochi?",
-            "Where is the nearest potential fishing zone today near Mangalore?",
-            "What are the tide and weather conditions near Chennai?",
-            "Any cyclone or lightning alerts near Goa?",
-            "Which regions show high chlorophyll and favourable SST near Kollam?",
-            "Plan a safe route from Kochi to Mangalore",
-            "Are there restricted zones near Karwar?",
-        ]
-        with st.expander("Try an example question"):
-            for ex in examples:
-                if st.button(ex, key=f"ex_{ex}", width="stretch"):
-                    st.session_state.pending_query = ex
-
-        query = st.chat_input("Ask about fishing zones, sea safety, weather, alerts, routes...")
-        pending = st.session_state.pop("pending_query", None)
-        query = query or pending
-
-        if query:
-            with st.chat_message("user"):
-                st.markdown(query)
-            with st.chat_message("assistant"):
-                with st.spinner("Agents are reasoning over marine data..."):
-                    result = st.session_state.orchestrator.handle_query(query)
-                st.markdown(result["answer"])
-            st.session_state.history.append({"query": query, "answer": result["answer"]})
-            st.session_state.last_result = result
+        if st.session_state.history:
+            for turn in reversed(st.session_state.history):
+                with st.chat_message("user"):
+                    st.markdown(turn["query"])
+                with st.chat_message("assistant"):
+                    st.markdown(turn["answer"])
+        else:
+            st.info("Type a question above, or tap a suggestion, to get started.")
 
     with map_col:
         st.markdown("**Geospatial view**")
@@ -147,9 +225,6 @@ with tab_ask:
                 for step in result["trace"]:
                     st.markdown(f"**{step['agent']}** \u2192 `{step['action']}`  \n{step['detail']}")
 
-# ===========================================================================
-# TAB 2: SOS Emergency
-# ===========================================================================
 with tab_sos:
     st.subheader("\U0001F6A8 Emergency SOS")
     st.markdown(
@@ -211,9 +286,6 @@ with tab_sos:
     else:
         st.caption("No alerts sent yet.")
 
-# ===========================================================================
-# TAB 3: Best Fishing Time
-# ===========================================================================
 with tab_time:
     st.subheader("\u23F0 Best Time to Fish Today")
     st.caption(f"Recommendation for **{sel_lat:.4f}, {sel_lon:.4f}** on **{sel_date.isoformat()}**, "
@@ -239,9 +311,6 @@ with tab_time:
             width="stretch", hide_index=True,
         )
 
-# ===========================================================================
-# TAB 4: Community reports (crowd-sourced recommendations)
-# ===========================================================================
 with tab_community:
     st.subheader("\U0001F91D Community Catch Reports")
     st.caption("See what other fishers are reporting nearby, or share your own catch to help others.")
@@ -276,9 +345,6 @@ with tab_community:
     else:
         st.info("No nearby reports yet — be the first to share one above!")
 
-# ===========================================================================
-# TAB 5: Weather forecast
-# ===========================================================================
 with tab_weather:
     st.subheader("\u26C5 Multi-Day Weather & Sea State Forecast")
     st.caption(f"Forecast for **{sel_lat:.4f}, {sel_lon:.4f}** starting **{sel_date.isoformat()}**")
@@ -305,15 +371,12 @@ with tab_weather:
     else:
         st.caption("No active hazard advisories for the selected date.")
 
-# ===========================================================================
-# TAB 6: Help / onboarding chatbot (explains the APP, not marine conditions)
-# ===========================================================================
 FEATURE_GUIDE = {
     "ask ai": (
-        "The **Ask AI** tab is a conversational assistant. Type a question in plain language "
-        "(any Indian language works too) like 'Is it safe to go to sea tomorrow near Kochi?' "
-        "and a team of AI agents will look up conditions, hazards, and geofences, then explain "
-        "its answer with a map."
+        "The **Ask AI** tab is where you talk to the marine assistant. Type a question in "
+        "plain language (any Indian language works too) like 'Is it safe to go to sea "
+        "tomorrow near Kochi?' and a team of AI agents will look up conditions, hazards, "
+        "and geofences, then explain the answer with a map."
     ),
     "sos": (
         "The **SOS Emergency** tab sends a distress alert if your boat has a problem. Fill in "
@@ -362,38 +425,50 @@ def _answer_help_question(text: str) -> str:
         matched.append(FEATURE_GUIDE["location"])
     if any(k in low for k in ["ask ai", "chat", "fishing zone", "pfz", "safe to venture", "safety"]):
         matched.append(FEATURE_GUIDE["ask ai"])
+    if any(k in low for k in ["who are you", "your name", "what are you"]):
+        return ("I'm **Tabby** \U0001F42C — your guide to this app! Ask me how to use any "
+                "feature, or just say 'what can you do' to see everything at once.")
 
     if matched:
-        return "\n\n".join(dict.fromkeys(matched))  # de-dupe while preserving order
+        return "\n\n".join(dict.fromkeys(matched))
 
     return (
-        "I can explain any part of this app! Here's everything it can do:\n\n"
+        "Here's everything I can walk you through:\n\n"
         + "\n\n".join(FEATURE_GUIDE.values())
     )
 
 
-with tab_help:
-    st.subheader("\u2753 New here? Ask me anything about this app")
+with tab_tabby:
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:14px; margin-bottom:6px;">
+        <div style="font-size:2.4rem;">\U0001F42C</div>
+        <div>
+            <div style="font-size:1.3rem; font-weight:700;">Hi, I'm Tabby!</div>
+            <div style="color:#666; font-size:0.95rem;">
+                Your guide to this app — ask me how anything works.
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.caption(
-        "This assistant explains the app's own features — for actual marine conditions, "
-        "use the **Ask AI** tab instead."
+        "I explain the app's own features — for actual sea conditions, use the **Ask AI** tab instead."
     )
 
     for turn in st.session_state.help_history:
         with st.chat_message("user"):
             st.markdown(turn["q"])
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar="\U0001F42C"):
             st.markdown(turn["a"])
 
     with st.expander("Or just show me everything the app can do"):
         for section in FEATURE_GUIDE.values():
             st.markdown("- " + section)
 
-    help_query = st.chat_input("e.g. 'How do I send an SOS?' or 'What can this app do?'", key="help_input")
+    help_query = st.chat_input("Ask Tabby e.g. 'How do I send an SOS?'", key="help_input")
     if help_query:
         with st.chat_message("user"):
             st.markdown(help_query)
         answer = _answer_help_question(help_query)
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar="\U0001F42C"):
             st.markdown(answer)
         st.session_state.help_history.append({"q": help_query, "a": answer})
